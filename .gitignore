@@ -1,2 +1,14 @@
+# Virtual environments
 venv/
-artifacts
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# ML artifacts
+artifacts/
+
+# Environment variables
+.env
