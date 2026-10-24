@@ -1,6 +1,9 @@
 from pathlib import Path
 
 import joblib
+import mlflow
+import mlflow.sklearn
+
 from sklearn.datasets import load_breast_cancer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
@@ -8,39 +11,66 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import accuracy_score, f1_score
 
-def train_model(output_dir = "artifacts"):
-	#1 Load dataset
+def train_model(output_dir = "artifacts", C = 1.0):
+	# 1 Load dataset
 	X, y = load_breast_cancer(return_X_y=True)
 
-	#2 Split data
+	# 2 Split data
 	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
-	#3 Create and train model
+	# 3 Create and train model
 	model = make_pipeline(
 		StandardScaler(),
-		LogisticRegression(max_iter=1000)
+		LogisticRegression(C=C, max_iter=1000)
 	)
-	model.fit(X_train, y_train)
 
-	#4 Evaulate predictions
-	predictions = model.predict(X_test)
+	# 4 Set MLflow experiment
+	mlflow.set_experiment("breast-cancer-classification")
 
-	metrics = {
-		"f1_score": f1_score(y_test, predictions),
-		"accuracy_score": accuracy_score(y_test, predictions)
-	}
+	with mlflow.start_run() as run:
+		mlflow.log_param("model_type", "LogisticRegression")
+		mlflow.log_param("C", C)
+		mlflow.log_param("max_iter", 1000)
+		mlflow.log_param("test_size", 0.2)
+		mlflow.log_param("random_state", 42)
 
-	#5 Save trained model
-	output_path = Path(output_dir)
-	output_path.mkdir(parents=True, exist_ok=True)
+		# 5 Train model
+		model.fit(X_train, y_train)
 
-	joblib.dump(model, output_path / "model.joblib")
+		predictions = model.predict(X_test)
+
+		# 6 Compute metrics
+		metrics = {
+			"f1_score": f1_score(y_test, predictions),
+			"accuracy_score": accuracy_score(y_test, predictions)
+		}
+
+		# 7 Log metrics
+		mlflow.log_metrics(metrics)
+
+		model_filename = (
+			f"model_C_{C}_{run.info.run_id[:8]}.joblib"
+		)
+
+		# 8 Save trained model
+		output_path = Path(output_dir)
+		output_path.mkdir(parents=True, exist_ok=True)
+
+		joblib.dump(model, output_path / model_filename)
+
+		# 9 Log model artifact to MLflow
+		mlflow.sklearn.log_model(
+			sk_model=model,
+			name="model",
+		)
+
+		mlflow.set_tag("local_model_file", model_filename)
 
 	return metrics
 
 if __name__ == "__main__":
-	metrics = train_model()
+	for C in [0.1, 1.0, 1.0]:
+		metrics = train_model(C=C)
 
-	for name, value in metrics.items():
-		print(f"name: {value:.4f}")
+		print(f"C: {C}, {metrics}")
 
