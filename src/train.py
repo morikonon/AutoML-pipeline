@@ -6,6 +6,7 @@ import mlflow.sklearn
 
 from sklearn.datasets import load_breast_cancer
 from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
@@ -24,6 +25,8 @@ def train_model(output_dir = "artifacts", C = 1.0):
 		LogisticRegression(C=C, max_iter=1000)
 	)
 
+	boosting = GradientBoostingClassifier()
+
 	# 4 Set MLflow experiment
 	mlflow.set_experiment("breast-cancer-classification")
 
@@ -34,15 +37,22 @@ def train_model(output_dir = "artifacts", C = 1.0):
 		mlflow.log_param("test_size", 0.2)
 		mlflow.log_param("random_state", 42)
 
+		mlflow.log_param("model_type", "GradientBoosting")
+
 		# 5 Train model
 		model.fit(X_train, y_train)
+		boosting.fit(X_train, y_train)
 
 		predictions = model.predict(X_test)
+		predictions2 = boosting.predict(X_test)
 
 		# 6 Compute metrics
 		metrics = {
 			"f1_score": f1_score(y_test, predictions),
 			"accuracy_score": accuracy_score(y_test, predictions)
+
+			"boosting_f1_score": f1_score(y_test, predictions2),
+			"boosting_accuracy_score": accuracy_score(y_test, predictions2)
 		}
 
 		# 7 Log metrics
@@ -50,6 +60,7 @@ def train_model(output_dir = "artifacts", C = 1.0):
 
 		model_filename = (
 			f"model_C_{C}_{run.info.run_id[:8]}.joblib"
+			f"model_boosting_C_{C}_{run.info.run_id[:8]}.joblib"
 		)
 
 		# 8 Save trained model
